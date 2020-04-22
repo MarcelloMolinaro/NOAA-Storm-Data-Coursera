@@ -9,84 +9,35 @@ library(lubridate)
 library(stringdist)
 #cache = TRUE
 
+a <- Sys.time()
 if (!exists("repdata")) {
     repdata <- read.csv2("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",")
-} #could use read.csv or read.table
+} #could use read.csv or read.table-- read.csv2 = 5.1 minutes
+Sys.time()- a
 
-repdata2 <- subset(repdata, select = c("STATE__","STATE", "EVTYPE", "BGN_DATE", "BGN_TIME", "END_DATE", "END_TIME", 
-                           "TIME_ZONE", "LENGTH", "WIDTH", "F", "MAG", "FATALITIES", "INJURIES", "PROPDMG", 
-                           "PROPDMGEXP", "CROPDMG", "CROPDMGEXP", "WFO" ))
+#Removes uneeded columns, could probably remove Len, Wid, F, Mag.
+repdata2 <- subset(repdata, select = c("STATE__","STATE", "EVTYPE", "BGN_DATE", "END_DATE", 
+                           "LENGTH", "WIDTH", "F", "MAG", "FATALITIES", "INJURIES", "PROPDMG", 
+                           "PROPDMGEXP", "CROPDMG", "CROPDMGEXP", "WFO"))
+#Subsets data to only post 1995 data (when the valuable data began)
+repdata2 <- subset(repdata2, year(strptime(repdata$BGN_DATE, "%m/%d/%Y %H:%M:%S")) > 1995)
 
-#This code cleans the data by removing uneeded columns and modifying variable types
-#convert all this number mumbo jumbo into Names so people know what i'm doing?
-repdata2[, c(1,9, 10, 12, 13:18)] <- sapply(repdata2[c(1,9, 10, 12, 13:18)], as.character)
-repdata2[, c(1,9, 10, 12, 13:18)] <- sapply(repdata2[c(1,9, 10, 12, 13:18)], as.numeric)
-
-#converts to POSIXlt class
-repdata2$NewStartDate <- strptime(repdata2[, 4], format = "%m/%d/%Y %H:%M:%S") #time parsing, not needed, not totally functional
-repdata2$NewEndDate   <- strptime(repdata2[, 6], format = "%m/%d/%Y %H:%M:%S") #strptime(repdata2[1:10, 5], format = "%I%M")
-
+#This modifies variable types
+#NA's introcuded here
+repdata2[, c("STATE__", "LENGTH", "WIDTH", "MAG", "FATALITIES","INJURIES", "PROPDMG", 
+             "CROPDMG")] <- lapply(repdata2[c("STATE__", "LENGTH", "WIDTH", "MAG", "FATALITIES",
+                                              "INJURIES", "PROPDMG", "CROPDMG")], function(x) as.numeric(as.character(x)))
+#adds POSIXlt data types for startand end dates
+repdata2 <- cbind(repdata2, 
+      NewStartDate= strptime(repdata2$BGN_DATE, format = "%m/%d/%Y %H:%M:%S"),
+      NewEndDate= strptime(repdata2$END_DATE, format = "%m/%d/%Y %H:%M:%S")
+      )
 
 #There is a bETTER way to do this...
 amatch(c("poop","winter", "winter m"), c("winter mix", "poop"), maxDist = 4, method = 'dl') or use default 'osa'
-#I need to clean up these event type and combine them into like categories
-eventlist <- sort(unique(repdata2$EVTYPE))
-eventlist2 <- sort(unique(repdata2$EVTYPE))
-eventlist2 <- recode(eventlist2, "Wintry mix" = "WINTERY MIX")
-eventlist2 <- case_when(
-          eventlist2 %in% c("Wintry Mix", "WINTRY MIX", "WINTER WEATHER/MIX", "Wintry mix", 
-                            "Winter Weather", "Winter Weather", "WINTER WEATHER MIX", "WINTER MIX") ~ "WINTERY MIX",
-          eventlist2 %in% c("WINTER STORM","WINTER STORM HIGH WINDS", "WINTER STORM/HIGH WIND", "WINTER STORM/HIGH WINDS") ~ "WINTER STORMS",
-          eventlist2 %in% c("WATERSPOUT","WATERSPOUT-","WATERSPOUT-TORNADO","WATERSPOUT FUNNEL CLOUD",
-                            "WATERSPOUT TORNADO","WATERSPOUT/","WATERSPOUT/ TORNADO","WATERSPOUT/TORNADO","WATERSPOUTS","WAYTERSPOUT") ~ "wATER SPOUT",
-          eventlist2 %in% c("URBAN AND SMALL", "URBAN AND SMALL STREAM", "URBAN AND SMALL STREAM FLOOD",
-                            "URBAN AND SMALL STREAM FLOODIN", "Urban flood", "Urban Flood", "URBAN FLOOD LANDSLIDE",
-                            "Urban Flooding", "URBAN FLOODING", "URBAN FLOODS", "URBAN SMALL", 
-                            "URBAN SMALL STREAM FLOOD", "URBAN/SMALL", "URBAN/SMALL FLOODING",
-                            "URBAN/SMALL STREAM", "URBAN/SMALL STREAM  FLOOD", "URBAN/SMALL STREAM FLOOD",
-                            "URBAN/SMALL STREAM FLOODING", "URBAN/SMALL STRM FLDG", "URBAN/SML STREAM FLD",
-                            "URBAN/SML STREAM FLDG", "URBAN/STREET FLOODING") ~ "URBAN FLOOD",
-          eventlist2 %in% c("TSTM", "TSTM HEAVY RAIN", "Tstm Wind", "TSTM WIND", "TSTM WIND  (G45)", "TSTM WIND (41)",
-                            "TSTM WIND (G35)", "TSTM WIND (G40)", "TSTM WIND (G45)", "TSTM WIND 40", "TSTM WIND 45", 
-                            "TSTM WIND 50", "TSTM WIND 51", "TSTM WIND 52", "TSTM WIND 55", "TSTM WIND 65)", 
-                            "TSTM WIND AND LIGHTNING", "TSTM WIND DAMAGE", "TSTM WIND G45", "TSTM WIND G58", 
-                            "TSTM WIND/HAIL", "TSTM WINDS", "TSTM WND", "TSTMW",
-                            "THUNDEERSTORM WINDS", "THUNDERESTORM WINDS", "THUNDERSTORM", 
-                            "THUNDERSTORM  WINDS", "THUNDERSTORM DAMAGE", "THUNDERSTORM DAMAGE TO", "THUNDERSTORM HAIL",
-                            "THUNDERSTORM W INDS", "Thunderstorm Wind", "THUNDERSTORM WIND", "THUNDERSTORM WIND (G40)",
-                            "THUNDERSTORM WIND 50", "THUNDERSTORM WIND 52", "THUNDERSTORM WIND 56", "THUNDERSTORM WIND 59",
-                            "THUNDERSTORM WIND 59 MPH", "THUNDERSTORM WIND 59 MPH.", "THUNDERSTORM WIND 60 MPH", 
-                            "THUNDERSTORM WIND 65 MPH", "THUNDERSTORM WIND 65MPH", "THUNDERSTORM WIND 69", "THUNDERSTORM WIND 98 MPH",
-                            "THUNDERSTORM WIND G50", "THUNDERSTORM WIND G51", "THUNDERSTORM WIND G52", "THUNDERSTORM WIND G55", 
-                            "THUNDERSTORM WIND G60", "THUNDERSTORM WIND G61", "THUNDERSTORM WIND TREES", "THUNDERSTORM WIND.", 
-                            "THUNDERSTORM WIND/ TREE", "THUNDERSTORM WIND/ TREES", "THUNDERSTORM WIND/AWNING", "THUNDERSTORM WIND/HAIL", 
-                            "THUNDERSTORM WIND/LIGHTNING","THUNDERSTORM WINDS", "THUNDERSTORM WINDS      LE CEN", "THUNDERSTORM WINDS 13", 
-                            "THUNDERSTORM WINDS 2", "THUNDERSTORM WINDS 50", "THUNDERSTORM WINDS 52", "THUNDERSTORM WINDS 53", 
-                            "THUNDERSTORM WINDS 60", "THUNDERSTORM WINDS 61", "THUNDERSTORM WINDS 62", "THUNDERSTORM WINDS 63 MPH", 
-                            "THUNDERSTORM WINDS AND", "THUNDERSTORM WINDS FUNNEL CLOU", "THUNDERSTORM WINDS G", "THUNDERSTORM WINDS G60", 
-                            "THUNDERSTORM WINDS HAIL", "THUNDERSTORM WINDS HEAVY RAIN", "THUNDERSTORM WINDS LIGHTNING", 
-                            "THUNDERSTORM WINDS SMALL STREA", "THUNDERSTORM WINDS URBAN FLOOD", "THUNDERSTORM WINDS.", "THUNDERSTORM WINDS/ FLOOD", 
-                            "THUNDERSTORM WINDS/ HAIL", "THUNDERSTORM WINDS/FLASH FLOOD", "THUNDERSTORM WINDS/FLOODING", 
-                            "THUNDERSTORM WINDS/FUNNEL CLOU", "THUNDERSTORM WINDS/HAIL", "THUNDERSTORM WINDS/HEAVY RAIN",  "THUNDERSTORM WINDS53", 
-                            "THUNDERSTORM WINDSHAIL", "THUNDERSTORM WINDSS", "THUNDERSTORM WINS", "THUNDERSTORMS", "THUNDERSTORMS WIND", "THUNDERSTORMS WINDS", 
-                            "THUNDERSTORMW","THUNDERSTORMW 50", "THUNDERSTORMW WINDS", "THUNDERSTORMWINDS", "THUNDERSTROM WIND", "THUNDERSTROM WINDS", 
-                            "THUNDERTORM WINDS","THUNDERTSORM WIND", "THUNDESTORM WINDS", "THUNERSTORM WINDS", "TUNDERSTORM WIND") ~  "THUDERSTORM WINDS",
-          eventlist2 %in% c("Summary August 10", "Summary August 11", "Summary August 17", "Summary August 2-3", "Summary August 21",
-                            "Summary August 28", "Summary August 4", "Summary August 7", "Summary August 9", "Summary Jan 17", 
-                            "Summary July 23-24", "Summary June 18-19", "Summary June 5-6", "Summary June 6", "Summary of April 12", 
-                            "Summary of April 13", "Summary of April 21", "Summary of April 27", "Summary of April 3rd", 
-                            "Summary of August 1", "Summary of July 11", "Summary of July 2", "Summary of July 22", "Summary of July 26",
-                            "Summary of July 29", "Summary of July 3", "Summary of June 10", "Summary of June 11", "Summary of June 12", 
-                            "Summary of June 13", "Summary of June 15", "Summary of June 16", "Summary of June 18", "Summary of June 23", 
-                            "Summary of June 24", "Summary of June 3", "Summary of June 30", "Summary of June 4", "Summary of June 6", 
-                            "Summary of March 14", "Summary of March 23", "Summary of March 24", "SUMMARY OF MARCH 24-25", "SUMMARY OF MARCH 27",
-                            "SUMMARY OF MARCH 29", "Summary of May 10", "Summary of May 13", "Summary of May 14", "Summary of May 22", 
-                            "Summary of May 22 am", "Summary of May 22 pm", "Summary of May 26 am", "Summary of May 26 pm", "Summary of May 31 am", 
-                            "Summary of May 31 pm", "Summary of May 9-10", "Summary Sept. 25-26", "Summary September 20", "Summary September 23",
-                            "Summary September 3", "Summary September 4", "Summary: Nov. 16", "Summary: Nov. 6-7", "Summary: Oct. 20-21", 
-                            "Summary: October 31"), ~ "Summary",
-          TRUE ~ as.character(eventlist2)
-          )
+
+
+
 
 #The following Code Summarizes the data by different groups
 states <- repdata2 %>% 
@@ -117,6 +68,7 @@ plot(yearsEvent$Year, yearsEvent$totFat, col = yearsEvent$EVTYPE)
 
 ggplot()
 
+#hint: Check REFNUM 605943. PROPDMGEXP is mis-coded. This should be self-evident from the magnitude of the number
 #code that also works
 repdataConcise <- select(repdata, STATE__, STATE, EVTYPE, BGN_DATE, BGN_TIME, END_DATE, END_TIME, 
                          TIME_ZONE, LENGTH, WIDTH, F, MAG, FATALITIES, INJURIES, PROPDMG, 
