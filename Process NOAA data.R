@@ -31,6 +31,8 @@ repdata2 <- cbind(repdata2,
       NewStartDate= strptime(repdata2$BGN_DATE, format = "%m/%d/%Y %H:%M:%S"),
       NewEndDate= strptime(repdata2$END_DATE, format = "%m/%d/%Y %H:%M:%S")
       )
+
+#no need to address numeric or lowercase Exponents, they are not in this subset.
 #treats Damage exponents and creates new columns
 repdata2 <- cbind(repdata2, 
                   cumPropDam = case_when(
