@@ -56,3 +56,11 @@ eventlist2 <- case_when(
                     "Summary: October 31"), ~ "Summary",
   TRUE ~ as.character(eventlist2)
 )
+
+#plot to show injuries and fatalities on same plot, wasn't actually helpful
+#tibble with only fat and injur
+yev2 <- gather(yev3, key, value, -Year, -lookup)
+barplot(yev2$value,
+        main = "Total Fatalities by Event Type",
+        col = yev2$Year,
+        names.arg = yev2$lookup)

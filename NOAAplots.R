@@ -1,15 +1,5 @@
 #plots
 
-events <- repdata2 %>% 
-  group_by(lookup) %>% 
-  summarise(instances = n(), totFat = sum(FATALITIES), totInjur = sum(INJURIES), totPropDam = sum(cumPropDam), totCropDam = sum(cumCropDam))
-events <- arrange(events, -totFat)
-
-yearsEvent <- repdata2 %>% 
-  group_by(Year = year(NewStartDate), lookup) %>%
-  summarise(instances = n(), totFat = sum(FATALITIES), totInjur = sum(INJURIES), totPropDam = sum(cumPropDam), totCropDam = sum(cumCropDam))
-yearsEvent <- arrange(yearsEvent, -totFat)
-
 #The following code creates different plots
 plot(years$Year, years$totFat, main = "Fatalities by Year, all event Types")
 
@@ -65,12 +55,10 @@ library(lattice)
 xyplot(data = yearsEvent, totFat ~ Year| lookup )
 xyplot(data = yearsEvent, totFat ~ Year| lookup, group = lookup, type = c("smooth") )
 xyplot(data = yearsEvent, totInjur ~ Year| lookup, group = lookup, type = c("p", "smooth") )
-
-
 #------------------------------------------#
 
-#------------------------------------------#
 #Excessive Heat Events over time
+#------------------------------------------#
 par( mfrow = c(1,2), mar = (c(5, 4, 4, 4))) #make right mrgin slightly larger
 
 heat <- filter(yearsEvent, lookup == "excessive heat") %>% arrange(Year)
@@ -88,20 +76,26 @@ lines(heat$Year, heat$totFat/heat$instances, type = "b", col = "red")
 legend("topleft", legend = c("Injuries per Event", "Fatalities per Event"), col = c("turquoise", "red"), lty = 1)
 #------------------------------------------#
 
-# Bar plot of Prop and Crop Dmg by event type
-#show stacked bar plot of damages by event
-#panel plot of events, each plot is event and x is year? Would be cool. Or at least the top 16?
+#------------------------------------------#
+#Graph of every event and its total Prop dam and Crop Dam
+ggplot() + 
+  geom_point(data = events, aes(x = lookup, y = totPropDam), color = "black") +
+  geom_point(data = events, aes(x = lookup, y = totCropDam), color = "red")+
+  labs(title = "Evnt sblarg", subtitle = "1996-2011", x  = "Event", y = "Total")
 
-ggplot()
-# do some cool stuff with colors?
+#Graph of the top 20 total Damage events
+etall <- events[1:15,] %>% select(lookup, totCropDam, totPropDam) %>% gather( key = "damType", value = "damValue", -lookup)
 
+ggplot() +
+  geom_bar(data = etall, aes(x= reorder(lookup, -damValue), y = damValue, fill = damType), stat= "identity") + 
+  coord_flip()
+#------------------------------------------#
 
-#plot to show injuries and fatalities on same plot, wasn't actually helpful
-#tibble with only fat and injur
-yEv <- yearsEvent[,c("Year", "lookup", "totFat", "totInjur")]
-#tall tibble with fat and injur in single col
-yev2 <- gather(yev3, key, value, -Year, -lookup)
-barplot(yev2$value,
-        main = "Total Fatalities by Event Type",
-        col = yev2$Year,
-        names.arg = yev2$lookup)
+#It would be fun to look at biggest totDamage by state and label the worst ones
+#states <- repdata2 %>% 
+#group_by(lookup, STATE) %>% 
+#  summarise(instances = n(), 
+#            totFat = sum(FATALITIES, na.rm = TRUE), 
+#            totInjur = sum(INJURIES, na.rm = TRUE), 
+#            totPropDam = sum(cumPropDam, na.rm = TRUE), 
+#            totCropDam = sum(cumCropDam, na.rm = TRUE))

@@ -52,42 +52,39 @@ repdata2$EVTYPE <- tolower(repdata2$EVTYPE)
 
 #This is required for easier event cleaning, might re-run below
 events <- repdata2 %>% 
-  group_by(EVTYPE) %>% 
-  summarise(instances = n(), totFat = sum(FATALITIES), totInjur = sum(INJURIES), totPropDam = sum(cumPropDam), totCropDam = sum(cumCropDam))
+    group_by(EVTYPE) %>% 
+    summarise(instances = n(), 
+              totFat = sum(FATALITIES, na.rm = TRUE), 
+              totInjur = sum(INJURIES, na.rm = TRUE), 
+              totPropDam = sum(cumPropDam, na.rm = TRUE), 
+              totCropDam = sum(cumCropDam, na.rm = TRUE))
 events <- arrange(events, -totFat)
-
 
 #GO CLEAN YOUR DATA! COME BACK HERE WHEN IT IS CLEAN!
 
-
 #The following Code Summarizes the data by different groups
-states <- repdata2 %>% 
-    group_by(lookup, STATE) %>% 
-    summarise(instances = n(), totFat = sum(FATALITIES), totInjur = sum(INJURIES), totPropDam = sum(cumPropDam), totCropDam = sum(cumCropDam))
 
 events <- repdata2 %>% 
     group_by(lookup) %>% 
-    summarise(instances = n(), totFat = sum(FATALITIES), totInjur = sum(INJURIES), totPropDam = sum(cumPropDam), totCropDam = sum(cumCropDam))
+    summarise(instances = n(), 
+              totFat = sum(FATALITIES, na.rm = TRUE), 
+              totInjur = sum(INJURIES, na.rm = TRUE), 
+              totPropDam = sum(cumPropDam, na.rm = TRUE), 
+              totCropDam = sum(cumCropDam, na.rm = TRUE))
 events <- arrange(events, -totFat)
 
-years <- repdata2 %>% 
-    group_by(Year = year(NewStartDate)) %>%
-    summarise(instances = n(), totFat = sum(FATALITIES), totInjur = sum(INJURIES), totPropDam = sum(cumPropDam), totCropDam = sum(cumCropDam))
+
 
 yearsEvent <- repdata2 %>% 
   group_by(Year = year(NewStartDate), lookup) %>%
-  summarise(instances = n(), totFat = sum(FATALITIES), totInjur = sum(INJURIES), totPropDam = sum(cumPropDam), totCropDam = sum(cumCropDam))
+  summarise(instances = n(), 
+            totFat = sum(FATALITIES, na.rm = TRUE), 
+            totInjur = sum(INJURIES, na.rm = TRUE), 
+            totPropDam = sum(cumPropDam, na.rm = TRUE), 
+            totCropDam = sum(cumCropDam, na.rm = TRUE))
 yearsEvent <- arrange(yearsEvent, -totFat)
 ####End of Data sumamrization
+#not usre I actually use all of those subsets
 
-#The following cod creates different plots
-plot(years$Year, years$totFat, main = "Fatalities by Year, all event Types")
-
-plot(yearsEvent$Year, yearsEvent$totFat, col = as.factor(yearsEvent$lookup))
-#legend("right", c(1, 2), legend =unique(as.factor(yearsEvent$lookup)), col = unique(as.factor(yearsEvent$lookup)), pch = 2,  )
-plot(as.factor(yearsEvent$lookup), yearsEvent$totFat)
-
-ggplot()
 
 #hint: Check REFNUM 605943. PROPDMGEXP is mis-coded. This should be self-evident from the magnitude of the number
-
