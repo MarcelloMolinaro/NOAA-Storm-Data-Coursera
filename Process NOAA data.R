@@ -7,25 +7,25 @@ library(dplyr)
 library(ggplot2)
 library(lubridate)
 library(stringdist)
-#cache = TRUE
 
 a <- Sys.time()
 if (!exists("repdata")) {
-    repdata <- read.csv2("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",")
+    repdata <- read.csv("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",")
 } #could use read.csv or read.table-- read.csv2 = 5.1 minutes
 Sys.time()- a
 
 #Removes uneeded columns, could probably remove Len, Wid, F, Mag.
 repdata2 <- subset(repdata, select = c("STATE__","STATE", "EVTYPE", "BGN_DATE", "END_DATE", 
-                           "LENGTH", "WIDTH", "F", "MAG", "FATALITIES", "INJURIES", "PROPDMG", 
-                           "PROPDMGEXP", "CROPDMG", "CROPDMGEXP", "WFO"))
+                           "FATALITIES", "INJURIES", "PROPDMG", 
+                           "PROPDMGEXP", "CROPDMG", "CROPDMGEXP"))
 #Subsets data to only post 1995 data (when the valuable data began)
 repdata2 <- subset(repdata2, year(strptime(repdata$BGN_DATE, "%m/%d/%Y %H:%M:%S")) > 1995)
 
 #This modifies variable types; NA's introcuded here
-repdata2[, c("STATE__", "LENGTH", "WIDTH", "MAG", "FATALITIES","INJURIES", "PROPDMG", 
-             "CROPDMG")] <- lapply(repdata2[c("STATE__", "LENGTH", "WIDTH", "MAG", "FATALITIES",
-                                              "INJURIES", "PROPDMG", "CROPDMG")], function(x) as.numeric(as.character(x)))
+repdata2[, c("STATE__", "FATALITIES","INJURIES", "PROPDMG", 
+             "CROPDMG")] <- lapply(repdata2[c("STATE__", "FATALITIES","INJURIES", "PROPDMG", "CROPDMG")], 
+                                   function(x) as.numeric(as.character(x)))
+
 #adds POSIXlt data types for start and end dates
 repdata2 <- cbind(repdata2, 
       NewStartDate= strptime(repdata2$BGN_DATE, format = "%m/%d/%Y %H:%M:%S"),

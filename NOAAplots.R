@@ -1,13 +1,5 @@
 #plots
 
-#The following code creates different plots
-plot(years$Year, years$totFat, main = "Fatalities by Year, all event Types")
-
-plot(yearsEvent$Year, yearsEvent$totFat, col = as.factor(yearsEvent$lookup))
-#legend("right", c(1, 2), legend =unique(as.factor(yearsEvent$lookup)), col = unique(as.factor(yearsEvent$lookup)), pch = 2,  )
-#too many, but nie plot!
-plot(as.factor(yearsEvent$lookup), yearsEvent$totFat)
-
 #----------------------------------------------------------#
 #Bar plots of 10 most fatal and 10 most injurious Eventtypes
 
@@ -52,8 +44,8 @@ barplot(eventsInjurInst$totInjur[1:10]/eventsInjurInst$instances[1:10],
 #------------------------------------------#
 library(lattice)
 
-xyplot(data = yearsEvent, totFat ~ Year| lookup )
-xyplot(data = yearsEvent, totFat ~ Year| lookup, group = lookup, type = c("smooth") )
+#xyplot(data = yearsEvent, totFat ~ Year| lookup )
+#xyplot(data = yearsEvent, totFat ~ Year| lookup, group = lookup, type = c("smooth") )
 xyplot(data = yearsEvent, totInjur ~ Year| lookup, group = lookup, type = c("p", "smooth") )
 #------------------------------------------#
 
@@ -76,19 +68,27 @@ lines(heat$Year, heat$totFat/heat$instances, type = "b", col = "red")
 legend("topleft", legend = c("Injuries per Event", "Fatalities per Event"), col = c("turquoise", "red"), lty = 1)
 #------------------------------------------#
 
-#------------------------------------------#
 #Graph of every event and its total Prop dam and Crop Dam
-ggplot() + 
-  geom_point(data = events, aes(x = lookup, y = totPropDam), color = "black") +
-  geom_point(data = events, aes(x = lookup, y = totCropDam), color = "red")+
-  labs(title = "Evnt sblarg", subtitle = "1996-2011", x  = "Event", y = "Total")
+#------------------------------------------#
+#ggplot() + 
+  #geom_point(data = events, aes(x = lookup, y = totPropDam), color = "black") +
+  #geom_point(data = events, aes(x = lookup, y = totCropDam), color = "red")+
+  #labs(title = "Evnt sblarg", subtitle = "1996-2011", x  = "Event", y = "Total")
 
 #Graph of the top 20 total Damage events
-etall <- events[1:15,] %>% select(lookup, totCropDam, totPropDam) %>% gather( key = "damType", value = "damValue", -lookup)
 
+etall <- arrange(events, -(totCropDam+ totPropDam)) #Order by total Damage
+etall <- etall[1:15,]  #Select top 15 only
+etall <- etall %>% select(lookup, totCropDam, totPropDam) %>% #Select only Dam columns
+        gather(key = "damType", value = "damValue", -lookup) #Convert to a tall table
+
+etall <- etall %>% mutate(damValueBill = damValue/1000000000)
 ggplot() +
-  geom_bar(data = etall, aes(x= reorder(lookup, -damValue), y = damValue, fill = damType), stat= "identity") + 
-  coord_flip()
+  geom_bar(data = etall, aes(x= reorder(lookup, -damValueBill), y = damValueBill, fill = damType), stat= "identity") + 
+  coord_flip()+
+  labs(x = "Event", y = "Total Damage Value (Billions)", title = "Total Damage by Event Type in US: 1996-2011") +
+  scale_fill_discrete(name = "Damage Type", labels = c("Crop", "Property"))
+
 #------------------------------------------#
 
 #It would be fun to look at biggest totDamage by state and label the worst ones
@@ -99,3 +99,11 @@ ggplot() +
 #            totInjur = sum(INJURIES, na.rm = TRUE), 
 #            totPropDam = sum(cumPropDam, na.rm = TRUE), 
 #            totCropDam = sum(cumCropDam, na.rm = TRUE))
+
+#The following code creates different plots
+plot(years$Year, years$totFat, main = "Fatalities by Year, all event Types")
+
+plot(yearsEvent$Year, yearsEvent$totFat, col = as.factor(yearsEvent$lookup))
+#legend("right", c(1, 2), legend =unique(as.factor(yearsEvent$lookup)), col = unique(as.factor(yearsEvent$lookup)), pch = 2,  )
+#too many, but nie plot!
+plot(as.factor(yearsEvent$lookup), yearsEvent$totFat)

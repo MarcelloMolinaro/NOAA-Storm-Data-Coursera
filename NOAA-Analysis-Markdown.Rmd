@@ -1,0 +1,258 @@
+---
+title: "NOAA Storm Data Report"
+subtitle: "Across US Excessive Heat and Flooding are biggest threats to Human and Economic health"
+output: html_document
+author: "Marcello Molinaro"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Synopsis
+This research report uses the U.S. National Oceanic and Atmospheric Asministration's (NOAA) storm database, compiled by the National Weather Service. It analyzes which storm event types are most harmful to:
+
+* population health
+* economic consequences
+
+For this study, "Population Health" is a mesure of overall fatalities and injuries due to storm events, and "Economic Consequences" are a measure of overall property and crop damage as a result of the storm event. This study concluded that in terms of population health, **Excessive Heat** events result in the most fatalities while **Tornados** result in the most injuries total. **Flooding and Flash flooding** are also big contributors being in the top 6 for both total injuries and fatalities.
+
+In terms of economic consequences, **Floods** carry the most ecomomic consequences, almost twice the next biggest event (**Hurricane/Typhoon**). To add to that, Of the top 6 most damaging event types, 4 of the 6 (Floods, Hurricanes, Storm Surge/Tide, and Flash Floods) relate to flooding. It is important to note that the biggest threat to CROP damage is clearly **Drought** events.
+
+```{r libraries}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(stringdist)
+library(tidyr)
+```
+
+## Data Processing
+This data comes from Storm Data csv file. After being read into R, specifc steps were taken to clean the data.
+```{r load libraries & read data, cache=TRUE}
+if (!exists("repdata")) {
+    repdata <- read.csv("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",")
+}
+```
+1. Since the question here did not concern every variable in the orignal data set, uneeded columns were removed.
+```{r remove columns, cache=TRUE}
+repdata2 <- subset(repdata, select = c("STATE__","STATE", "EVTYPE", "BGN_DATE", "END_DATE", 
+                           "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")
+                   )
+```
+2. Since the data only include a handful of all events prior to 1996, only years 1996 to 2011 (end of dataset) were included
+```{r keep select years, cache=TRUE}
+repdata2 <- subset(repdata2, year(strptime(repdata$BGN_DATE, "%m/%d/%Y %H:%M:%S")) > 1995)
+```
+
+3. Numeric data types were then converted to numerics so calculations could be accomplished. Begin and End dates were also converted to Date formats.
+
+```{r numeric & date types, cache=TRUE}
+repdata2[, c("STATE__", "FATALITIES","INJURIES", "PROPDMG", 
+             "CROPDMG")] <- lapply(repdata2[c("STATE__", "FATALITIES","INJURIES", "PROPDMG", "CROPDMG")], 
+                                   function(x) as.numeric(as.character(x)))
+repdata2 <- cbind(repdata2, 
+      NewStartDate= strptime(repdata2$BGN_DATE, format = "%m/%d/%Y %H:%M:%S"),
+      NewEndDate= strptime(repdata2$END_DATE, format = "%m/%d/%Y %H:%M:%S")
+      )
+```
+
+4. Finally, the Property and Crop damage variables are stored with exponents rather than the full value. This code converts both of the damage types to the complete number.
+
+```{r Crop and Prop exponenets, cache=TRUE}
+#no need to address numeric or lowercase Exponents, they are not present in this subset.
+repdata2 <- cbind(repdata2, 
+                  cumPropDam = case_when(
+                                  repdata2$PROPDMGEXP == "B" ~ repdata2$PROPDMG * 1000000000,
+                                  repdata2$PROPDMGEXP == "M" ~ repdata2$PROPDMG * 1000000,
+                                  repdata2$PROPDMGEXP == "K" ~ repdata2$PROPDMG * 1000
+                  ),
+                  cumCropDam = case_when(
+                                  repdata2$CROPDMGEXP == "B" ~ repdata2$CROPDMG * 1000000000,
+                                  repdata2$CROPDMGEXP == "M" ~ repdata2$CROPDMG * 1000000,
+                                  repdata2$CROPDMGEXP == "K" ~ repdata2$CROPDMG * 1000  
+                  )
+            )
+```
+
+### Data Processing: Event Clean-up
+There are a significant number of Event Types that have been miscoded or simply have typos. To clean up this data these steps were taken:
+
+1. Change all event types to lower case
+2. Summarise the Event Type occurences to see which events only have 1-2 occurences (i.e. are typos)
+3. Read in the official list of 48 Events from the National Weather Service <https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf>
+4. Compile a list of potentially erroneous Event Types
+5. Keep only those Events with more than 2 instances, >1M$ in prop/crop damage total, or more than ZERO Fatalities 
+6. Compare the Clean list of 48 to the current list
+    + Using amatch, coerce the Dataset events to the 48 Event types
+    + I found using a maxDist of 10 a good combination of few errors, but also mostly matches (only 66 NA's)
+7. Join the newly coerced codes back to the original dataset under the column name "lookup"
+
+```{r event cleaning, echo = TRUE}
+#Converts every event type to lowercase to consolidate types
+repdata2$EVTYPE <- tolower(repdata2$EVTYPE)
+
+#This is required for easier event cleaning
+events <- repdata2 %>% 
+    group_by(EVTYPE) %>% 
+    summarise(instances = n(), 
+              totFat = sum(FATALITIES, na.rm = TRUE), 
+              totInjur = sum(INJURIES, na.rm = TRUE), 
+              totPropDam = sum(cumPropDam, na.rm = TRUE), 
+              totCropDam = sum(cumCropDam, na.rm = TRUE))
+
+eCodes <- read.table("Eventcodes.txt", sep = "\n", header = TRUE)
+
+#Gets rid of event type designation ("c, m, z"), everything to lowercase
+eCodes2 <- tolower(sapply(eCodes, function(x) gsub(" [CMZ]$", "", x)))
+eCodes2 <- rbind(eCodes2, "CleanedUpData")
+#list of messy data event types, already lowercase
+
+baddata <- unique(repdata2$EVTYPE)
+#as result, converts from factors to chr type
+
+#Create table of Events with fewer than 3 occurences.
+leastevents <- subset(arrange(events, instances), instances < 3)
+
+#Keep only prop/crop dmg greater than 1M, Fatalities >0, instances of only 1 or 2
+#list of EVTYPES to keep from <3 intance occurence
+eveKeep<- unique(rbind(filter(leastevents, totPropDam >= 1000000) %>% select(EVTYPE),
+              filter(leastevents, totCropDam >= 1000000) %>% select(EVTYPE),
+              filter(leastevents, totFat >= 1) %>% select(EVTYPE)
+            )
+)
+
+#list of EVTYPES that we could get rid of...
+garbage <- filter(leastevents, (!EVTYPE %in% eveKeep$EVTYPE))
+#list of "Summary" events we can get rid...
+summary <- filter(events, grepl("summary", EVTYPE, fixed = TRUE))
+
+#replaces bad data with placeholder
+baddata <- case_when(
+      baddata %in% garbage$EVTYPE ~ "garbage", 
+      baddata %in% summary$EVTYPE ~ "summary", 
+      TRUE ~ baddata 
+)
+
+#matches baddata codes to 48 oficial codes, then sets them next to eachother
+matchNums <- sapply(baddata, function(x) if(x !="garbage" && x != "summary"){amatch(x, eCodes2, maxDist = 10)} else {49})
+matchResult <- as.data.frame(cbind(baddata, lookup = eCodes2[matchNums]), stringsAsFactors = FALSE)
+
+#Join the new clean codes to the original cleaned dataset
+repdata2 <- left_join(repdata2, matchResult, by = c("EVTYPE" = "baddata"))
+#remove NA's
+repdata2 <- repdata2[!is.na("lookup"),]
+```
+### Data Processing: Summarize Data
+The data was then summarized by Event and by EventYear for Analysis
+```{r summarize data}
+events <- repdata2 %>% 
+    group_by(lookup) %>% 
+    summarise(instances = n(), 
+              totFat = sum(FATALITIES, na.rm = TRUE), 
+              totInjur = sum(INJURIES, na.rm = TRUE), 
+              totPropDam = sum(cumPropDam, na.rm = TRUE), 
+              totCropDam = sum(cumCropDam, na.rm = TRUE))
+events <- arrange(events, -totFat)
+
+yearsEvent <- repdata2 %>% 
+  group_by(Year = year(NewStartDate), lookup) %>%
+  summarise(instances = n(), 
+            totFat = sum(FATALITIES, na.rm = TRUE), 
+            totInjur = sum(INJURIES, na.rm = TRUE), 
+            totPropDam = sum(cumPropDam, na.rm = TRUE), 
+            totCropDam = sum(cumCropDam, na.rm = TRUE))
+yearsEvent <- arrange(yearsEvent, -totFat)
+```
+
+## Results
+The analysis refers to the following plots below. 
+
+* Heat events had the most fatalities over the time period and second most injuries, while Tornados resulted in the most injuries. [Figure 1]
+* Per individual event, Tsunamis are the most deadly while Hurricane/Typhoons are the most injurious. [Figure 1]
+* "Are heat events becoming worse?" [Figure 2]
+  + The Total number of Fatalities and Injuries for Extreme Heat Events, the most harmful event with respect to human health, do not appear to be increasing.
+  + However, injuries and fatalities PER event do see an upward trend, meaning the severity of these events might be increasing
+* Floods have the most economic consequences, with more than twice as much total damage than the second most damaging event (Hurrican/typhoon). [Figure 3]
+* With respect to Crop damage, Droughts cause the most crop damage of any event, including Floods. [Figure 3]
+  
+
+```{r plot1 Fatalities and Injuries, echo=TRUE, fig.cap = "Figure 1"}
+#Bar plots of 10 most fatal and 10 most injurious Eventtypes
+
+par(mfrow = c(2,2), #sets a 2x2 grid of plots
+    las = 1, #can use to make labels vertical = 2
+    mar = (c(5, 8, 4, 2)) # makes y margin larger (8, was 4)
+  )
+#Fatalities Total
+eventsFat <- events
+barplot(eventsFat$totFat[1:10],
+        horiz = TRUE,
+        main = "Total Fatalities by Event Type",
+        sub = "1996-2011",
+        names.arg = eventsFat$lookup[1:10], 
+        cex.names=0.8, xlab = "Fatalities")
+
+#Fatalities per instance
+eventsFatInst <- arrange(events, -(totFat/instances))
+barplot(eventsFatInst$totFat[1:10]/eventsFatInst$instances[1:10], 
+        horiz = TRUE,
+        main = "Total Fatalities per Instance by Event Type",
+        sub = "1996-2011",
+        names.arg = eventsFatInst$lookup[1:10], 
+        cex.names=0.8,  xlab = "Fatalities")
+
+#Injuries Total
+eventsInjur <- arrange(events, -totInjur)
+barplot(eventsInjur$totInjur[1:10], 
+        horiz = TRUE,
+        main = "Total Injuries by Event Type",
+        sub = "1996-2011",
+        names.arg = eventsInjur$lookup[1:10], 
+        cex.names=0.8,  xlab = "Injuries")
+
+#Injuries per Instance
+eventsInjurInst <- arrange(events, -(totInjur/instances))
+barplot(eventsInjurInst$totInjur[1:10]/eventsInjurInst$instances[1:10], 
+        horiz = TRUE,
+        main = "Total Injuries per Instance by Event Type",
+        sub = "1996-2011",
+        names.arg = eventsInjurInst$lookup[1:10], 
+        cex.names=.8, xlab = "Injuries")
+```
+
+``` {r plot2 heat Events, fig.cap = "Figure 2"}
+#Excessive Heat Events over time
+
+par( mfrow = c(1,2), mar = (c(5, 4, 4, 4))) #make right mrgin slightly larger
+
+heat <- filter(yearsEvent, lookup == "excessive heat") %>% arrange(Year)
+plot(heat$Year, heat$totInjur, 
+     type = "b", col = "turquoise", 
+     xlab = "Year", ylab = "Total", 
+     main  = "Excessive Heat Events over time",
+     sub = "Injuries and Fatalities")
+lines(heat$Year, heat$totFat, type = "b", col = "red")
+legend("topleft", legend = c("Injuries", "Fatalities"), col = c("turquoise", "red"), lty = 1)
+plot(heat$Year, heat$totInjur/heat$instances, 
+     type = "b", col = "turquoise", 
+     xlab = "Year", ylab = "Total", 
+     main = "Excessive Heat Events over time",
+     sub = "Injuries and Fatalities per Event")
+lines(heat$Year, heat$totFat/heat$instances, type = "b", col = "red")
+legend("topleft", legend = c("Injuries per Event", "Fatalities per Event"), col = c("turquoise", "red"), lty = 1)
+```
+
+``` {r plot3 Event Damage, fig.cap = "Figure 3"}
+#Graph of the top 20 total Damage events
+etall <- events %>% arrange(-(totCropDam + totPropDam)) #Order Events by total Damage
+etall <- etall[1:15,] %>% select(lookup, totCropDam, totPropDam) %>% #Select only Dam columns
+        gather(key = "damType", value = "damValue", -lookup) %>% #Convert to a tall table
+        mutate(damValueBill = damValue/1000000000)#Convert to Billions
+
+ggplot() +
+  geom_bar(data = etall, aes(x= reorder(lookup, -damValueBill), y = damValueBill, fill = damType), stat= "identity") + 
+  coord_flip()+
+  labs(x = "Event", y = "Total Damage Value (Billions $)", title = "Total Damage by Event Type in US: 1996-2011") +
+  scale_fill_discrete(name = "Damage Type", labels = c("Crop", "Property"))
+```
